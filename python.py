@@ -39,14 +39,13 @@ except Exception:
 # HELPER FUNCTIONS
 # ----------------------------------------------------------
 def fetch_existing_data():
-    """Read entire sheet into a DataFrame safely."""
+    """Read entire sheet into a DataFrame."""
     if DEMO_MODE:
         return pd.DataFrame(columns=["Name", "Number", "Bill No", "Amount", "Voucher", "Timestamp"])
-    
     data = google_sheet.get_all_records()
     df = pd.DataFrame(data)
-    # Make sure all column names are strings and strip whitespace
-    df.columns = [str(col).strip() for col in df.columns]
+    # Remove spaces from headers
+    df.columns = df.columns.str.strip()
     return df
 
 def generate_voucher(count):
@@ -69,6 +68,15 @@ def bill_already_used(bill_no):
     match = df[df["Bill No"].astype(str) == str(bill_no)]
     return not match.empty
 
+def get_existing_vouchers_for_mobile(mobile):
+    """Return all vouchers associated with this mobile number."""
+    if df.empty:
+        return []
+    match = df[df["Number"].astype(str) == str(mobile)]
+    if match.empty:
+        return []
+    return match["Voucher"].tolist()
+
 # ----------------------------------------------------------
 # LOAD EXISTING DATA
 # ----------------------------------------------------------
@@ -85,6 +93,7 @@ with st.form("details_form"):
     bill_no = st.text_input("Bill Number", value="DEMO-12345")
     amount = st.number_input("Bill Amount (AED)", min_value=1.0, value=100.0)
     submitted = st.form_submit_button("Submit")
+
 # ----------------------------------------------------------
 # PROCESS FORM
 # ----------------------------------------------------------
@@ -99,7 +108,7 @@ if submitted:
         st.error("❌ This bill was already used to claim a voucher.")
         st.stop()
 
-    # Calculate number of vouchers based on amount
+    # Calculate number of vouchers based on amount (1 per 50 AED)
     vouchers_count = math.floor(float(amount) / 50)
     if vouchers_count < 1:
         st.error("❌ Minimum AED 50 needed to earn 1 voucher.")
@@ -108,16 +117,31 @@ if submitted:
     st.info(f"🧾 You will receive **{vouchers_count} voucher(s)** for this bill.")
 
     # Generate and save multiple vouchers
+    new_vouchers = []
     for i in range(vouchers_count):
         voucher_num = generate_voucher(len(df) + i + 1)
         save_to_sheet(name, mobile, bill_no, amount, voucher_num)
+        new_vouchers.append(voucher_num)
         st.success(f"🎟️ Voucher Generated: {voucher_num}")
 
     # Balloons animation
     st.balloons()
 
     # -------------------------------
-    # Show Instagram only after balloons
+    # Clear the page and show only Instagram message
     # -------------------------------
-    st.markdown("### ✅ To claim your voucher, please follow us on Instagram:")
-    st.markdown("[Follow us on Instagram](https://www.instagram.com/almadinagroupuae?igsh=MTBqazJzamlzNXM3bg==)")
+    st.empty()  # remove previous Streamlit elements
+
+    st.markdown(
+        """
+        <div style='text-align: center; margin-top: 20%;'>
+            <h2>✅ To claim your voucher, please follow us on Instagram:</h2>
+            <a href='https://www.instagram.com/almadinagroupuae?igsh=MTBqazJzamlzNXM3bg==' 
+               target='_blank' 
+               style='font-size: 24px; text-decoration: none; color: #1DA1F2;'>
+               Follow us on Instagram
+            </a>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
