@@ -11,7 +11,6 @@ import math
 st.set_page_config(page_title="Voucher Claim", layout="centered")
 st.title("🎟️ Voucher Claim Portal")
 
-
 # ----------------------------------------------------------
 # GOOGLE SHEETS CONNECTION
 # ----------------------------------------------------------
@@ -29,6 +28,7 @@ try:
     creds = Credentials.from_service_account_info(
         st.secrets["google_service_account"], scopes=SCOPE
     )
+
     client = gspread.authorize(creds)
     google_sheet = client.open_by_url(SHEET_URL).sheet1
 
@@ -36,9 +36,26 @@ except Exception:
     st.warning("⚠️ Unable to connect to Google Sheets. Running in demo mode.")
     DEMO_MODE = True
 
+# ----------------------------------------------------------
+# READ QR PARAMETERS
+# Example QR: ?bill_no=123&amount=85
+# ----------------------------------------------------------
+query_params = st.query_params
+
+bill_no = query_params.get("bill_no", "")
+amount = query_params.get("amount", "")
+
+# For DEMO mode → auto-fill sample values
+if not bill_no:
+    bill_no = "DEMO-12345"
+
+if not amount:
+    amount = "100"
+
+st.info(f"🧾 **Bill No:** {bill_no} | 💰 **Amount:** {amount} AED")
 
 # ----------------------------------------------------------
-# HELPER: Fetch Sheet Data
+# HELPER FUNCTIONS
 # ----------------------------------------------------------
 def fetch_existing_data():
     """Read entire sheet into a DataFrame."""
@@ -49,14 +66,8 @@ def fetch_existing_data():
     return pd.DataFrame(data)
 
 
-df = fetch_existing_data()
-
-
-# ----------------------------------------------------------
-# HELPER FUNCTIONS
-# ----------------------------------------------------------
 def generate_voucher(count):
-    """Generate voucher like VCHR-00001"""
+    """Generates formatted voucher number: VCHR-00001"""
     return f"VCHR-{count:05d}"
 
 
@@ -67,60 +78,54 @@ def save_to_sheet(name, mobile, bill_no, amount, voucher):
     row = [name, mobile, "", "", "", bill_no, amount, voucher, timestamp]
 
     if DEMO_MODE:
-        st.success(f"[DEMO] Row saved locally: {row}")
+        st.success(f"[DEMO] Row saved: {row}")
         return
 
     google_sheet.append_row(row)
 
 
+# ----------------------------------------------------------
+# LOAD EXISTING DATA
+# ----------------------------------------------------------
+df = fetch_existing_data()
+
+# ----------------------------------------------------------
+# CHECK IF MOBILE ALREADY HAS A VOUCHER
+# ----------------------------------------------------------
 def get_existing_voucher(mobile):
     if df.empty:
         return None
+
     match = df[df["Number"].astype(str) == str(mobile)]
     if match.empty:
         return None
+
     return match.iloc[0]["Voucher"]
 
-
+# ----------------------------------------------------------
+# CHECK IF BILL ALREADY USED
+# ----------------------------------------------------------
 def bill_already_used(bill_no):
     if df.empty:
         return False
+
     match = df[df["Bill No"].astype(str) == str(bill_no)]
     return not match.empty
 
 
 # ----------------------------------------------------------
-# NEW: BILL ENTRY SECTION (Manual Demo Entry)
+# FORM FOR CUSTOMER DETAILS
 # ----------------------------------------------------------
-st.subheader("🧾 Enter Bill Details (Demo/Manual Mode)")
+st.subheader("📋 Enter Your Details")
 
-with st.form("bill_form"):
-    bill_no = st.text_input("Bill Number", placeholder="Enter Bill Number")
-    bill_amount = st.number_input("Bill Amount (AED)", min_value=1, step=1)
-    bill_submit = st.form_submit_button("Confirm Bill")
-
-if not bill_submit:
-    st.stop()
-
-if not bill_no or bill_amount <= 0:
-    st.error("Please enter a valid Bill No and Amount.")
-    st.stop()
-
-st.success(f"Bill Loaded → **{bill_no} | {bill_amount} AED**")
-
-
-# ----------------------------------------------------------
-# CUSTOMER DETAILS FORM
-# ----------------------------------------------------------
-st.subheader("👤 Enter Your Details")
-
-with st.form("customer_form"):
+with st.form("details_form"):
     name = st.text_input("Full Name")
     mobile = st.text_input("Mobile Number")
-    submitted = st.form_submit_button("Claim Voucher")
+    submitted = st.form_submit_button("Submit")
+
 
 # ----------------------------------------------------------
-# PROCESS CUSTOMER CLAIM
+# PROCESS FORM
 # ----------------------------------------------------------
 if submitted:
 
@@ -128,26 +133,32 @@ if submitted:
         st.warning("Please fill all fields.")
         st.stop()
 
+    # Check if mobile already received voucher
     existing_voucher = get_existing_voucher(mobile)
     if existing_voucher:
         st.success(f"🎉 You already have a voucher: **{existing_voucher}**")
-        st.info("One voucher per mobile number.")
+        st.info("You cannot receive multiple vouchers with the same number.")
         st.stop()
 
+    # Check if bill already claimed
     if bill_already_used(bill_no):
         st.error("❌ This bill was already used to claim a voucher.")
         st.stop()
 
-    voucher_count = math.floor(float(bill_amount) / 50)
-    if voucher_count < 1:
-        st.error("❌ Minimum AED 50 required for 1 voucher.")
+    # Calculate vouchers based on amount
+    vouchers_count = math.floor(float(amount) / 50)
+
+    if vouchers_count < 1:
+        st.error("❌ Minimum AED 50 needed to earn 1 voucher.")
         st.stop()
 
-    voucher_no = generate_voucher(len(df) + 1)
+    # Create new voucher
+    voucher_num = generate_voucher(len(df) + 1)
 
-    save_to_sheet(name, mobile, bill_no, bill_amount, voucher_no)
+    # Save to Google Sheet
+    save_to_sheet(name, mobile, bill_no, amount, voucher_num)
 
-    st.success(f"🎉 Voucher Generated: **{voucher_no}**")
-    st.info(f"🧾 You earned **{voucher_count} voucher(s)** from this bill.")
+    st.success(f"🎉 **Voucher Generated: {voucher_num}**")
+    st.info(f"🧾 You earned **{vouchers_count} voucher(s)** from this bill.")
 
-    st.balloons()   # <-- 🎈🎈🎈 BALLOONS HERE 🎈🎈🎈
+    st.balloons()
