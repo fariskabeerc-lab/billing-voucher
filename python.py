@@ -41,7 +41,6 @@ except Exception:
 # HELPER FUNCTIONS
 # ----------------------------------------------------------
 def fetch_existing_data():
-    """Read entire sheet into a DataFrame."""
     if DEMO_MODE:
         return pd.DataFrame(columns=["Name", "Number", "Bill No", "Amount", "Voucher", "Timestamp"])
     data = google_sheet.get_all_records()
@@ -51,12 +50,10 @@ def fetch_existing_data():
 
 
 def generate_voucher(count):
-    """Generates formatted voucher number: VCHR-00001"""
     return f"VCHR-{count:05d}"
 
 
 def save_to_sheet(name, mobile, bill_no, amount, voucher):
-    """Save new row to Google Sheets."""
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     row = [name, mobile, bill_no, amount, voucher, timestamp]
     if DEMO_MODE:
@@ -65,12 +62,18 @@ def save_to_sheet(name, mobile, bill_no, amount, voucher):
     google_sheet.append_row(row)
 
 
-def bill_already_used(bill_no):
-    """Check if bill number already claimed a voucher."""
+def bill_claim_exists(bill_no, mobile):
+    """Check if the bill number is already claimed by any mobile, 
+    or if this mobile already claimed this bill."""
     if df.empty:
-        return False
-    match = df[df["Bill No"].astype(str) == str(bill_no)]
-    return not match.empty
+        return False, False  # (bill_used, same_mobile_used)
+    # Check if bill is used by any mobile
+    bill_used = not df[df["Bill No"].astype(str) == str(bill_no)].empty
+    # Check if same mobile already used this bill
+    same_mobile_used = not df[
+        (df["Bill No"].astype(str) == str(bill_no)) & (df["Number"].astype(str) == str(mobile))
+    ].empty
+    return bill_used, same_mobile_used
 
 
 # ----------------------------------------------------------
@@ -93,20 +96,23 @@ with st.form("details_form"):
 # PROCESS FORM
 # ----------------------------------------------------------
 if submitted:
-    # Check all fields
     if not name or not mobile or not bill_no:
         st.warning("Please fill all fields.")
         st.stop()
 
-    # Reload data before checking to ensure latest Google Sheet
+    # Reload sheet to ensure latest data
     df = fetch_existing_data()
 
-    # Check if bill already used
-    if bill_already_used(bill_no):
-        st.error("❌ This bill was already used to claim a voucher.")
+    # Check if bill/mobile combination exists
+    bill_used, same_mobile_used = bill_claim_exists(bill_no, mobile)
+    if same_mobile_used:
+        st.error("❌ You have already claimed a voucher for this bill.")
+        st.stop()
+    elif bill_used:
+        st.error("❌ This bill has already been claimed by another mobile number.")
         st.stop()
 
-    # Calculate number of vouchers based on amount
+    # Calculate vouchers based on amount
     vouchers_count = math.floor(float(amount) / 50)
     if vouchers_count < 1:
         st.error("❌ Minimum AED 50 needed to earn 1 voucher.")
@@ -123,7 +129,7 @@ if submitted:
     # Show balloons animation
     st.balloons()
 
-    # Clear everything and show Instagram follow message
+    # Show Instagram follow message
     st.empty()
     st.markdown(
         "<h1 style='text-align: center; color: green;'>✅ To claim your voucher, please follow us on Instagram</h1>"
