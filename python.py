@@ -10,13 +10,15 @@ import math
 # ----------------------------------------------------------
 st.set_page_config(page_title="Voucher Claim", layout="centered")
 st.title("🎟️ Voucher Claim Portal")
-st.info("💡 Note: In the final version, the Bill Number and Amount will be fetched automatically via the QR code on your POS bill. For now, you can enter them manually.")
+st.info(
+    "💡 Note: In the final version, the Bill Number and Amount will be fetched automatically "
+    "via the QR code on your POS bill. For now, you can enter them manually."
+)
 
 # ----------------------------------------------------------
 # GOOGLE SHEETS CONNECTION
 # ----------------------------------------------------------
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1neEVEoAbDeW9PcjkTb3bNracxnTpsBvjYvxZ0VTYZq0/edit?gid=0"
-
 SCOPE = [
     "https://spreadsheets.google.com/feeds",
     "https://www.googleapis.com/auth/drive"
@@ -44,12 +46,15 @@ def fetch_existing_data():
         return pd.DataFrame(columns=["Name", "Number", "Bill No", "Amount", "Voucher", "Timestamp"])
     data = google_sheet.get_all_records()
     df = pd.DataFrame(data)
-    df.columns = df.columns.str.strip()  # remove spaces from headers
+    # Convert all column names to string and strip spaces
+    df.columns = [str(col).strip() for col in df.columns]
     return df
+
 
 def generate_voucher(count):
     """Generates formatted voucher number: VCHR-00001"""
     return f"VCHR-{count:05d}"
+
 
 def save_to_sheet(name, mobile, bill_no, amount, voucher):
     """Save new row to Google Sheets."""
@@ -60,6 +65,7 @@ def save_to_sheet(name, mobile, bill_no, amount, voucher):
         return
     google_sheet.append_row(row)
 
+
 def bill_already_used(bill_no):
     """Check if bill number already claimed a voucher."""
     if df.empty:
@@ -67,16 +73,16 @@ def bill_already_used(bill_no):
     match = df[df["Bill No"].astype(str) == str(bill_no)]
     return not match.empty
 
+
 # ----------------------------------------------------------
 # LOAD EXISTING DATA
 # ----------------------------------------------------------
 df = fetch_existing_data()
 
 # ----------------------------------------------------------
-# DEMO FORM FOR CUSTOMER DETAILS
+# FORM FOR CUSTOMER DETAILS
 # ----------------------------------------------------------
 st.subheader("📋 Enter Your Details")
-
 with st.form("details_form"):
     name = st.text_input("Full Name")
     mobile = st.text_input("Mobile Number")
@@ -88,12 +94,12 @@ with st.form("details_form"):
 # PROCESS FORM
 # ----------------------------------------------------------
 if submitted:
-    # Check if all fields filled
+    # Check all fields
     if not name or not mobile or not bill_no:
         st.warning("Please fill all fields.")
         st.stop()
 
-    # Check if bill already claimed
+    # Check if bill already used
     if bill_already_used(bill_no):
         st.error("❌ This bill was already used to claim a voucher.")
         st.stop()
@@ -106,10 +112,19 @@ if submitted:
 
     st.info(f"🧾 You will receive **{vouchers_count} voucher(s)** for this bill.")
 
-    # Generate and save multiple vouchers
+    # Generate and save vouchers
     for i in range(vouchers_count):
         voucher_num = generate_voucher(len(df) + i + 1)
         save_to_sheet(name, mobile, bill_no, amount, voucher_num)
         st.success(f"🎟️ Voucher Generated: {voucher_num}")
 
+    # Show balloons animation
     st.balloons()
+
+    # Clear screen and show Instagram follow message
+    st.experimental_rerun()  # optional, if you want to reload the app blank first
+    st.markdown(
+        "<h1 style='text-align: center; color: green;'>✅ To claim your voucher, please follow us on Instagram</h1>"
+        "<h2 style='text-align: center;'><a href='https://www.instagram.com/almadinagroupuae/' target='_blank'>Follow us on Instagram</a></h2>",
+        unsafe_allow_html=True,
+    )
