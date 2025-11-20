@@ -1,99 +1,164 @@
 import streamlit as st
+import pandas as pd
+from datetime import datetime
 import gspread
 from google.oauth2.service_account import Credentials
 import math
-import json
 
-# ----------------------------
-# Google Sheet Setup
-# ----------------------------
-SCOPE = ["https://www.googleapis.com/auth/spreadsheets",
-         "https://www.googleapis.com/auth/drive"]
+# ----------------------------------------------------------
+# PAGE SETUP
+# ----------------------------------------------------------
+st.set_page_config(page_title="Voucher Claim", layout="centered")
+st.title("🎟️ Voucher Claim Portal")
 
-# Load credentials from Streamlit Secrets
-# Make sure your secret name is: google_service_account
-creds_info = json.loads(st.secrets["google_service_account"]["value"])
-CREDS = Credentials.from_service_account_info(creds_info, scopes=SCOPE)
-GC = gspread.authorize(CREDS)
 
-# Google Sheet URL
-SHEET_URL = "https://docs.google.com/spreadsheets/d/1neEVEoAbDeW9PcjkTb3bNracxnTpsBvjYvxZ0VTYZq0/edit?gid=0"
-SHEET = GC.open_by_url(SHEET_URL).sheet1
+# ----------------------------------------------------------
+# GOOGLE SHEETS CONNECTION
+# ----------------------------------------------------------
+SHEET_URL = "https://docs.google.com/spreadsheets/d/1neEVEoAbDeW9PcjkTb3bNracxnTpsBvjYvxZ0VTYZq0/edit?gid=0#gid=0"
 
-# ----------------------------
-# Fetch query params (QR code) or demo mode
-# ----------------------------
-query_params = st.experimental_get_query_params()
-bill_no = query_params.get("bill_no", ["DEMO123"])[0]  # demo default
-amount = query_params.get("amount", ["150"])[0]        # demo default
+SCOPE = [
+    "https://spreadsheets.google.com/feeds",
+    "https://www.googleapis.com/auth/drive"
+]
 
-# Convert amount to float
+google_sheet = None
+DEMO_MODE = False
+
 try:
-    amount = float(amount)
-except:
-    amount = 150  # fallback demo amount
+    creds = Credentials.from_service_account_info(
+        st.secrets["google_service_account"], scopes=SCOPE
+    )
 
-st.title("🎁 Voucher Claim Form (Demo Mode)")
-st.write(f"Bill No: **{bill_no}** | Amount: **{amount} AED**")
+    client = gspread.authorize(creds)
+    google_sheet = client.open_by_url(SHEET_URL).sheet1
 
-# ----------------------------
-# Customer Form
-# ----------------------------
-with st.form("customer_form"):
+except Exception:
+    st.warning("⚠️ Unable to connect to Google Sheets. Running in demo mode.")
+    DEMO_MODE = True
+
+
+# ----------------------------------------------------------
+# READ QR PARAMETERS
+# Example QR link:  ?bill_no=123&amount=85
+# ----------------------------------------------------------
+query_params = st.query_params
+
+bill_no = query_params.get("bill_no", "")
+amount = query_params.get("amount", "")
+
+if not bill_no or not amount:
+    st.warning("⚠️ Invalid QR link. Bill number or amount missing.")
+    st.stop()
+
+st.info(f"🧾 **Bill No:** {bill_no} | 💰 **Amount:** {amount} AED")
+
+
+# ----------------------------------------------------------
+# HELPER FUNCTIONS
+# ----------------------------------------------------------
+def fetch_existing_data():
+    """Read entire sheet into a DataFrame."""
+    if DEMO_MODE:
+        return pd.DataFrame(columns=["Name", "Number", "Bill No", "Amount", "Voucher", "Timestamp"])
+
+    data = google_sheet.get_all_records()
+    return pd.DataFrame(data)
+
+
+def generate_voucher(count):
+    """Generates formatted voucher number: VCHR-00001"""
+    return f"VCHR-{count:05d}"
+
+
+def save_to_sheet(name, mobile, bill_no, amount, voucher):
+    """Save new row to Google Sheets."""
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    row = [name, mobile, "", "", "", bill_no, amount, voucher, timestamp]
+
+    if DEMO_MODE:
+        st.success(f"[DEMO] Row saved: {row}")
+        return
+
+    google_sheet.append_row(row)
+
+
+# ----------------------------------------------------------
+# LOAD EXISTING DATA
+# ----------------------------------------------------------
+df = fetch_existing_data()
+
+
+# ----------------------------------------------------------
+# CHECK IF MOBILE ALREADY HAS A VOUCHER
+# ----------------------------------------------------------
+def get_existing_voucher(mobile):
+    if df.empty:
+        return None
+
+    match = df[df["Number"].astype(str) == str(mobile)]
+    if match.empty:
+        return None
+
+    return match.iloc[0]["Voucher"]
+
+
+# ----------------------------------------------------------
+# CHECK IF BILL ALREADY USED
+# ----------------------------------------------------------
+def bill_already_used(bill_no):
+    if df.empty:
+        return False
+
+    match = df[df["Bill No"].astype(str) == str(bill_no)]
+    return not match.empty
+
+
+# ----------------------------------------------------------
+# FORM FOR CUSTOMER DETAILS
+# ----------------------------------------------------------
+st.subheader("📋 Enter Your Details")
+
+with st.form("details_form"):
     name = st.text_input("Full Name")
-    number = st.text_input("Mobile Number (with country code, e.g., 97150xxxxxxx)")
-    nationality = st.text_input("Nationality (optional)")
-    email = st.text_input("Email (optional)")
-    address = st.text_input("Address (optional)")
-    instagram = st.checkbox("Follow our Instagram to claim voucher (informational)")
+    mobile = st.text_input("Mobile Number")
     submitted = st.form_submit_button("Submit")
 
+# ----------------------------------------------------------
+# PROCESS FORM
+# ----------------------------------------------------------
 if submitted:
-    if not name or not number:
-        st.error("Name and Mobile Number are required!")
+    if not name or not mobile:
+        st.warning("Please fill all fields.")
         st.stop()
 
-    # ----------------------------
-    # Fetch all records from Google Sheet
-    # ----------------------------
-    all_records = SHEET.get_all_records()
+    # If mobile already has voucher → reuse
+    existing_voucher = get_existing_voucher(mobile)
 
-    # Check if number exists for this bill
-    existing_voucher = None
-    for record in all_records:
-        if str(record['Number']) == number and str(record['Bill No']) == bill_no:
-            existing_voucher = record
-            break
-
-    # Calculate number of vouchers
-    vouchers_to_generate = math.floor(amount / 50)
-    if vouchers_to_generate < 1:
-        vouchers_to_generate = 1  # minimum 1 voucher
-
-    # ----------------------------
-    # Voucher Logic
-    # ----------------------------
     if existing_voucher:
-        st.info(f"This mobile number has already claimed voucher(s) for Bill No {bill_no}.")
-        st.success(f"Voucher(s) already issued.")
-    else:
-        # Determine last voucher number
-        last_voucher_row = len(all_records)
-        voucher_numbers = []
-        for i in range(vouchers_to_generate):
-            voucher_no = f"VCHR-{last_voucher_row + i + 1:05d}"
-            voucher_numbers.append(voucher_no)
+        st.success(f"🎉 You already have a voucher: **{existing_voucher}**")
+        st.info("You cannot receive multiple vouchers with the same number.")
+        st.stop()
 
-        # Append new row to Google Sheet
-        new_row = [name, number, nationality, email, address, bill_no, amount]
-        SHEET.append_row(new_row)
+    # If bill already used → stop
+    if bill_already_used(bill_no):
+        st.error("❌ This bill was already used to claim a voucher.")
+        st.stop()
 
-        st.success(f"Voucher(s) generated: {', '.join(voucher_numbers)}")
+    # Calculate number of vouchers based on amount
+    vouchers_count = math.floor(float(amount) / 50)
+    if vouchers_count < 1:
+        st.error("❌ Minimum AED 50 needed to earn 1 voucher.")
+        st.stop()
 
-        # ----------------------------
-        # WhatsApp sending placeholder (just a mark)
-        # ----------------------------
-        # Here you could integrate WhatsApp Cloud API to send the voucher
-        # Example:
-        # send_whatsapp(number, voucher_numbers)
-        st.info("Voucher has been sent to your WhatsApp (placeholder mark only).")
+    # Generate NEW voucher
+    voucher_num = generate_voucher(len(df) + 1)
+
+    # Save to Google Sheet
+    save_to_sheet(name, mobile, bill_no, amount, voucher_num)
+
+    st.success(f"🎉 **Voucher Generated: {voucher_num}**")
+    st.info(f"🧾 You earned **{vouchers_count} voucher(s)** from this bill.")
+
+    st.balloons()
