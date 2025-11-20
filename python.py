@@ -85,7 +85,6 @@ with st.form("details_form"):
     bill_no = st.text_input("Bill Number", value="DEMO-12345")
     amount = st.number_input("Bill Amount (AED)", min_value=1.0, value=100.0)
     submitted = st.form_submit_button("Submit")
-
 # ----------------------------------------------------------
 # PROCESS FORM
 # ----------------------------------------------------------
@@ -114,10 +113,11 @@ if submitted:
         save_to_sheet(name, mobile, bill_no, amount, voucher_num)
         st.success(f"🎟️ Voucher Generated: {voucher_num}")
 
+    # Balloons animation
     st.balloons()
 
-    # ----------------------------------------------------------
-    # FOLLOW INSTAGRAM STEP
-    # ----------------------------------------------------------
-    st.info("✅ To claim your voucher, please follow us on Instagram:")
+    # -------------------------------
+    # Show Instagram only after balloons
+    # -------------------------------
+    st.markdown("### ✅ To claim your voucher, please follow us on Instagram:")
     st.markdown("[Follow us on Instagram](https://www.instagram.com/almadinagroupuae?igsh=MTBqazJzamlzNXM3bg==)")
