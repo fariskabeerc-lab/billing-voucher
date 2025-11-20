@@ -10,8 +10,9 @@ import json
 SCOPE = ["https://www.googleapis.com/auth/spreadsheets",
          "https://www.googleapis.com/auth/drive"]
 
-# Load credentials from Streamlit secrets
-creds_info = json.loads(st.secrets["gcp_service_account"])
+# Load credentials from Streamlit Secrets
+# Make sure your secret name is: google_service_account
+creds_info = json.loads(st.secrets["google_service_account"]["value"])
 CREDS = Credentials.from_service_account_info(creds_info, scopes=SCOPE)
 GC = gspread.authorize(CREDS)
 
