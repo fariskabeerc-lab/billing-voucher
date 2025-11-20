@@ -44,8 +44,7 @@ def fetch_existing_data():
         return pd.DataFrame(columns=["Name", "Number", "Bill No", "Amount", "Voucher", "Timestamp"])
     data = google_sheet.get_all_records()
     df = pd.DataFrame(data)
-    # Remove spaces from headers
-    df.columns = df.columns.str.strip()
+    df.columns = df.columns.str.strip()  # remove spaces from headers
     return df
 
 def generate_voucher(count):
@@ -67,15 +66,6 @@ def bill_already_used(bill_no):
         return False
     match = df[df["Bill No"].astype(str) == str(bill_no)]
     return not match.empty
-
-def get_existing_vouchers_for_mobile(mobile):
-    """Return all vouchers associated with this mobile number."""
-    if df.empty:
-        return []
-    match = df[df["Number"].astype(str) == str(mobile)]
-    if match.empty:
-        return []
-    return match["Voucher"].tolist()
 
 # ----------------------------------------------------------
 # LOAD EXISTING DATA
@@ -108,7 +98,7 @@ if submitted:
         st.error("❌ This bill was already used to claim a voucher.")
         st.stop()
 
-    # Calculate number of vouchers based on amount (1 per 50 AED)
+    # Calculate number of vouchers based on amount
     vouchers_count = math.floor(float(amount) / 50)
     if vouchers_count < 1:
         st.error("❌ Minimum AED 50 needed to earn 1 voucher.")
@@ -117,31 +107,9 @@ if submitted:
     st.info(f"🧾 You will receive **{vouchers_count} voucher(s)** for this bill.")
 
     # Generate and save multiple vouchers
-    new_vouchers = []
     for i in range(vouchers_count):
         voucher_num = generate_voucher(len(df) + i + 1)
         save_to_sheet(name, mobile, bill_no, amount, voucher_num)
-        new_vouchers.append(voucher_num)
         st.success(f"🎟️ Voucher Generated: {voucher_num}")
 
-    # Balloons animation
     st.balloons()
-
-    # -------------------------------
-    # Clear the page and show only Instagram message
-    # -------------------------------
-    st.empty()  # remove previous Streamlit elements
-
-    st.markdown(
-        """
-        <div style='text-align: center; margin-top: 20%;'>
-            <h2>✅ To claim your voucher, please follow us on Instagram:</h2>
-            <a href='https://www.instagram.com/almadinagroupuae?igsh=MTBqazJzamlzNXM3bg==' 
-               target='_blank' 
-               style='font-size: 24px; text-decoration: none; color: #1DA1F2;'>
-               Follow us on Instagram
-            </a>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
