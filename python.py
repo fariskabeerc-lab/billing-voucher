@@ -46,7 +46,6 @@ def fetch_existing_data():
         return pd.DataFrame(columns=["Name", "Number", "Bill No", "Amount", "Voucher", "Timestamp"])
     data = google_sheet.get_all_records()
     df = pd.DataFrame(data)
-    # Convert all column names to string and strip spaces
     df.columns = [str(col).strip() for col in df.columns]
     return df
 
@@ -99,6 +98,9 @@ if submitted:
         st.warning("Please fill all fields.")
         st.stop()
 
+    # Reload data before checking to ensure latest Google Sheet
+    df = fetch_existing_data()
+
     # Check if bill already used
     if bill_already_used(bill_no):
         st.error("❌ This bill was already used to claim a voucher.")
@@ -121,8 +123,8 @@ if submitted:
     # Show balloons animation
     st.balloons()
 
-    # Clear screen and show Instagram follow message
-    st.experimental_rerun()  # optional, if you want to reload the app blank first
+    # Clear everything and show Instagram follow message
+    st.empty()
     st.markdown(
         "<h1 style='text-align: center; color: green;'>✅ To claim your voucher, please follow us on Instagram</h1>"
         "<h2 style='text-align: center;'><a href='https://www.instagram.com/almadinagroupuae/' target='_blank'>Follow us on Instagram</a></h2>",
