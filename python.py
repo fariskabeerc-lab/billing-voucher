@@ -5,6 +5,15 @@ import gspread
 from google.oauth2.service_account import Credentials
 import math
 
+# Hide Streamlit menu and footer
+hide_streamlit_style = """
+            <style>
+            #MainMenu {visibility: hidden;}
+            footer {visibility: hidden;}
+            header {visibility: hidden;}
+            </style>
+            """
+st.markdown(hide_streamlit_style, unsafe_allow_html=True)
 # ------------------ PAGE SETUP ------------------
 st.set_page_config(page_title="Voucher Claim", layout="centered")
 st.title("🎟️ Voucher Claim Portal")
