@@ -47,9 +47,13 @@ query_params = st.query_params
 bill_no = query_params.get("bill_no", "")
 amount = query_params.get("amount", "")
 
-if not bill_no or not amount:
-    st.warning("⚠️ Invalid QR link. Bill number or amount missing.")
-    st.stop()
+# For demo, allow without validation
+if not bill_no:
+    bill_no = "DEMO-12345"
+
+if not amount:
+    amount = "100"
+
 
 st.info(f"🧾 **Bill No:** {bill_no} | 💰 **Amount:** {amount} AED")
 
