@@ -16,6 +16,9 @@ st.set_page_config(page_title="Voucher Claim", layout="centered")
 if "submitted" not in st.session_state:
     st.session_state.submitted = False
 
+if "vouchers" not in st.session_state:
+    st.session_state.vouchers = []
+
 # ----------------------------------------------------------
 # GOOGLE SHEETS CONNECTION
 # ----------------------------------------------------------
@@ -42,7 +45,6 @@ except Exception:
 # HELPER FUNCTIONS
 # ----------------------------------------------------------
 def fetch_existing_data():
-    """Read entire sheet into a DataFrame."""
     if DEMO_MODE:
         return pd.DataFrame(columns=["Name", "Number", "Bill No", "Amount", "Voucher", "Timestamp"])
     data = google_sheet.get_all_records()
@@ -72,7 +74,7 @@ def bill_already_used(bill_no):
 df = fetch_existing_data()
 
 # ----------------------------------------------------------
-# IF FORM WAS SUBMITTED → SHOW ONLY INSTAGRAM MESSAGE
+# SHOW INSTAGRAM PAGE IF SUBMITTED
 # ----------------------------------------------------------
 if st.session_state.submitted:
     st.markdown(
@@ -90,7 +92,7 @@ if st.session_state.submitted:
     )
 else:
     # ----------------------------------------------------------
-    # DEMO FORM FOR CUSTOMER DETAILS
+    # FORM FOR CUSTOMER DETAILS
     # ----------------------------------------------------------
     st.title("🎟️ Voucher Claim Portal")
     st.info("💡 Note: Bill Number and Amount will be fetched automatically via QR in final version. For now, enter manually.")
@@ -104,12 +106,11 @@ else:
         submitted = st.form_submit_button("Submit")
 
     if submitted:
-        # Check all fields
+        # Validate
         if not name or not mobile or not bill_no:
             st.warning("Please fill all fields.")
             st.stop()
 
-        # Check if bill already used
         if bill_already_used(bill_no):
             st.error("❌ This bill was already used to claim a voucher.")
             st.stop()
@@ -122,17 +123,16 @@ else:
 
         st.info(f"🧾 You will receive **{vouchers_count} voucher(s)** for this bill.")
 
-        # Generate vouchers
+        # Generate and save vouchers
+        st.session_state.vouchers = []
         for i in range(vouchers_count):
             voucher_num = generate_voucher(len(df) + i + 1)
             save_to_sheet(name, mobile, bill_no, amount, voucher_num)
             st.success(f"🎟️ Voucher Generated: {voucher_num}")
+            st.session_state.vouchers.append(voucher_num)
 
         # Balloons animation
         st.balloons()
 
         # Set session state to show Instagram page next
         st.session_state.submitted = True
-
-        # Rerun to show only Instagram message
-        st.experimental_rerun()
