@@ -9,8 +9,12 @@ import math
 # PAGE SETUP
 # ----------------------------------------------------------
 st.set_page_config(page_title="Voucher Claim", layout="centered")
-st.title("🎟️ Voucher Claim Portal")
-st.info("💡 Note: In the final version, the Bill Number and Amount will be fetched automatically via the QR code on your POS bill. For now, you can enter them manually.")
+
+# ----------------------------------------------------------
+# SESSION STATE
+# ----------------------------------------------------------
+if "submitted" not in st.session_state:
+    st.session_state.submitted = False
 
 # ----------------------------------------------------------
 # GOOGLE SHEETS CONNECTION
@@ -32,7 +36,6 @@ try:
     client = gspread.authorize(creds)
     google_sheet = client.open_by_url(SHEET_URL).sheet1
 except Exception:
-    st.warning("⚠️ Unable to connect to Google Sheets. Running in demo mode.")
     DEMO_MODE = True
 
 # ----------------------------------------------------------
@@ -44,38 +47,24 @@ def fetch_existing_data():
         return pd.DataFrame(columns=["Name", "Number", "Bill No", "Amount", "Voucher", "Timestamp"])
     data = google_sheet.get_all_records()
     df = pd.DataFrame(data)
-    # Remove spaces from headers
     df.columns = df.columns.str.strip()
     return df
 
 def generate_voucher(count):
-    """Generates formatted voucher number: VCHR-00001"""
     return f"VCHR-{count:05d}"
 
 def save_to_sheet(name, mobile, bill_no, amount, voucher):
-    """Save new row to Google Sheets."""
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     row = [name, mobile, bill_no, amount, voucher, timestamp]
     if DEMO_MODE:
-        st.success(f"[DEMO] Row saved: {row}")
         return
     google_sheet.append_row(row)
 
 def bill_already_used(bill_no):
-    """Check if bill number already claimed a voucher."""
     if df.empty:
         return False
     match = df[df["Bill No"].astype(str) == str(bill_no)]
     return not match.empty
-
-def get_existing_vouchers_for_mobile(mobile):
-    """Return all vouchers associated with this mobile number."""
-    if df.empty:
-        return []
-    match = df[df["Number"].astype(str) == str(mobile)]
-    if match.empty:
-        return []
-    return match["Voucher"].tolist()
 
 # ----------------------------------------------------------
 # LOAD EXISTING DATA
@@ -83,55 +72,9 @@ def get_existing_vouchers_for_mobile(mobile):
 df = fetch_existing_data()
 
 # ----------------------------------------------------------
-# DEMO FORM FOR CUSTOMER DETAILS
+# IF FORM WAS SUBMITTED → SHOW ONLY INSTAGRAM MESSAGE
 # ----------------------------------------------------------
-st.subheader("📋 Enter Your Details")
-
-with st.form("details_form"):
-    name = st.text_input("Full Name")
-    mobile = st.text_input("Mobile Number")
-    bill_no = st.text_input("Bill Number", value="DEMO-12345")
-    amount = st.number_input("Bill Amount (AED)", min_value=1.0, value=100.0)
-    submitted = st.form_submit_button("Submit")
-
-# ----------------------------------------------------------
-# PROCESS FORM
-# ----------------------------------------------------------
-if submitted:
-    # Check if all fields filled
-    if not name or not mobile or not bill_no:
-        st.warning("Please fill all fields.")
-        st.stop()
-
-    # Check if bill already claimed
-    if bill_already_used(bill_no):
-        st.error("❌ This bill was already used to claim a voucher.")
-        st.stop()
-
-    # Calculate number of vouchers based on amount (1 per 50 AED)
-    vouchers_count = math.floor(float(amount) / 50)
-    if vouchers_count < 1:
-        st.error("❌ Minimum AED 50 needed to earn 1 voucher.")
-        st.stop()
-
-    st.info(f"🧾 You will receive **{vouchers_count} voucher(s)** for this bill.")
-
-    # Generate and save multiple vouchers
-    new_vouchers = []
-    for i in range(vouchers_count):
-        voucher_num = generate_voucher(len(df) + i + 1)
-        save_to_sheet(name, mobile, bill_no, amount, voucher_num)
-        new_vouchers.append(voucher_num)
-        st.success(f"🎟️ Voucher Generated: {voucher_num}")
-
-    # Balloons animation
-    st.balloons()
-
-    # -------------------------------
-    # Clear the page and show only Instagram message
-    # -------------------------------
-    st.empty()  # remove previous Streamlit elements
-
+if st.session_state.submitted:
     st.markdown(
         """
         <div style='text-align: center; margin-top: 20%;'>
@@ -145,3 +88,51 @@ if submitted:
         """,
         unsafe_allow_html=True
     )
+else:
+    # ----------------------------------------------------------
+    # DEMO FORM FOR CUSTOMER DETAILS
+    # ----------------------------------------------------------
+    st.title("🎟️ Voucher Claim Portal")
+    st.info("💡 Note: Bill Number and Amount will be fetched automatically via QR in final version. For now, enter manually.")
+
+    st.subheader("📋 Enter Your Details")
+    with st.form("details_form"):
+        name = st.text_input("Full Name")
+        mobile = st.text_input("Mobile Number")
+        bill_no = st.text_input("Bill Number", value="DEMO-12345")
+        amount = st.number_input("Bill Amount (AED)", min_value=1.0, value=100.0)
+        submitted = st.form_submit_button("Submit")
+
+    if submitted:
+        # Check all fields
+        if not name or not mobile or not bill_no:
+            st.warning("Please fill all fields.")
+            st.stop()
+
+        # Check if bill already used
+        if bill_already_used(bill_no):
+            st.error("❌ This bill was already used to claim a voucher.")
+            st.stop()
+
+        # Calculate vouchers
+        vouchers_count = math.floor(float(amount) / 50)
+        if vouchers_count < 1:
+            st.error("❌ Minimum AED 50 needed to earn 1 voucher.")
+            st.stop()
+
+        st.info(f"🧾 You will receive **{vouchers_count} voucher(s)** for this bill.")
+
+        # Generate vouchers
+        for i in range(vouchers_count):
+            voucher_num = generate_voucher(len(df) + i + 1)
+            save_to_sheet(name, mobile, bill_no, amount, voucher_num)
+            st.success(f"🎟️ Voucher Generated: {voucher_num}")
+
+        # Balloons animation
+        st.balloons()
+
+        # Set session state to show Instagram page next
+        st.session_state.submitted = True
+
+        # Rerun to show only Instagram message
+        st.experimental_rerun()
