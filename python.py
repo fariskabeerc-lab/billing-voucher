@@ -124,37 +124,30 @@ with st.form("customer_form"):
 # ----------------------------------------------------------
 if submitted:
 
-    # validate
     if not name or not mobile:
         st.warning("Please fill all fields.")
         st.stop()
 
-    # Check if mobile already used
     existing_voucher = get_existing_voucher(mobile)
     if existing_voucher:
         st.success(f"🎉 You already have a voucher: **{existing_voucher}**")
         st.info("One voucher per mobile number.")
         st.stop()
 
-    # Check if bill already used
     if bill_already_used(bill_no):
         st.error("❌ This bill was already used to claim a voucher.")
         st.stop()
 
-    # Voucher count logic
     voucher_count = math.floor(float(bill_amount) / 50)
     if voucher_count < 1:
         st.error("❌ Minimum AED 50 required for 1 voucher.")
         st.stop()
 
-    # Generate voucher
     voucher_no = generate_voucher(len(df) + 1)
 
-    # Save
     save_to_sheet(name, mobile, bill_no, bill_amount, voucher_no)
 
-    # Success output
     st.success(f"🎉 Voucher Generated: **{voucher_no}**")
-    st.info(f"You earned **{voucher_count} voucher(s)**")
+    st.info(f"🧾 You earned **{voucher_count} voucher(s)** from this bill.")
 
-    st.balloons()
+    st.balloons()   # <-- 🎈🎈🎈 BALLOONS HERE 🎈🎈🎈
