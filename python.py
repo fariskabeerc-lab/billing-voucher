@@ -45,13 +45,12 @@ def fetch_existing_data():
         return pd.DataFrame(columns=["Name", "Number", "Bill No", "Amount", "Voucher", "Timestamp"])
     data = google_sheet.get_all_records()
     df = pd.DataFrame(data)
+    # Normalize column names
     df.columns = [str(col).strip() for col in df.columns]
     return df
 
-
 def generate_voucher(count):
     return f"VCHR-{count:05d}"
-
 
 def save_to_sheet(name, mobile, bill_no, amount, voucher):
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -61,25 +60,16 @@ def save_to_sheet(name, mobile, bill_no, amount, voucher):
         return
     google_sheet.append_row(row)
 
-
-def bill_claim_exists(bill_no, mobile):
-    """Check if the bill number is already claimed by any mobile, 
-    or if this mobile already claimed this bill."""
+def check_bill_mobile_combination(df, bill_no, mobile):
+    """Return True if this bill was already claimed by any mobile or by the same mobile."""
     if df.empty:
-        return False, False  # (bill_used, same_mobile_used)
-    # Check if bill is used by any mobile
-    bill_used = not df[df["Bill No"].astype(str) == str(bill_no)].empty
-    # Check if same mobile already used this bill
+        return False, False  # (bill_used_by_anyone, same_mobile_used)
+    bill_used_by_anyone = not df[df["Bill No"].astype(str) == str(bill_no)].empty
     same_mobile_used = not df[
-        (df["Bill No"].astype(str) == str(bill_no)) & (df["Number"].astype(str) == str(mobile))
+        (df["Bill No"].astype(str) == str(bill_no)) &
+        (df["Number"].astype(str) == str(mobile))
     ].empty
-    return bill_used, same_mobile_used
-
-
-# ----------------------------------------------------------
-# LOAD EXISTING DATA
-# ----------------------------------------------------------
-df = fetch_existing_data()
+    return bill_used_by_anyone, same_mobile_used
 
 # ----------------------------------------------------------
 # FORM FOR CUSTOMER DETAILS
@@ -100,11 +90,12 @@ if submitted:
         st.warning("Please fill all fields.")
         st.stop()
 
-    # Reload sheet to ensure latest data
+    # Reload latest sheet data
     df = fetch_existing_data()
 
-    # Check if bill/mobile combination exists
-    bill_used, same_mobile_used = bill_claim_exists(bill_no, mobile)
+    # Check for duplicates
+    bill_used, same_mobile_used = check_bill_mobile_combination(df, bill_no, mobile)
+
     if same_mobile_used:
         st.error("❌ You have already claimed a voucher for this bill.")
         st.stop()
@@ -112,7 +103,7 @@ if submitted:
         st.error("❌ This bill has already been claimed by another mobile number.")
         st.stop()
 
-    # Calculate vouchers based on amount
+    # Calculate vouchers
     vouchers_count = math.floor(float(amount) / 50)
     if vouchers_count < 1:
         st.error("❌ Minimum AED 50 needed to earn 1 voucher.")
@@ -129,10 +120,10 @@ if submitted:
     # Show balloons animation
     st.balloons()
 
-    # Show Instagram follow message
+    # Clear everything else and show Instagram follow message
     st.empty()
     st.markdown(
-        "<h1 style='text-align: center; color: green;'>✅ To claim your voucher, please follow us on Instagram</h1>"
-        "<h2 style='text-align: center;'><a href='https://www.instagram.com/almadinagroupuae/' target='_blank'>Follow us on Instagram</a></h2>",
+        "<h1 style='text-align:center; color:green;'>✅ To claim your voucher, please follow us on Instagram</h1>"
+        "<h2 style='text-align:center;'><a href='https://www.instagram.com/almadinagroupuae/' target='_blank'>Follow us on Instagram</a></h2>",
         unsafe_allow_html=True,
     )
