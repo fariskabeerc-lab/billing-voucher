@@ -39,20 +39,17 @@ except Exception:
 # HELPER FUNCTIONS
 # ----------------------------------------------------------
 def fetch_existing_data():
-    """Read entire sheet into a DataFrame."""
     if DEMO_MODE:
         return pd.DataFrame(columns=["Name", "Number", "Bill No", "Amount", "Voucher", "Timestamp"])
     data = google_sheet.get_all_records()
     df = pd.DataFrame(data)
-    df.columns = df.columns.str.strip()  # remove spaces from headers
+    df.columns = df.columns.str.strip()
     return df
 
 def generate_voucher(count):
-    """Generates formatted voucher number: VCHR-00001"""
     return f"VCHR-{count:05d}"
 
 def save_to_sheet(name, mobile, bill_no, amount, voucher):
-    """Save new row to Google Sheets."""
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     row = [name, mobile, bill_no, amount, voucher, timestamp]
     if DEMO_MODE:
@@ -61,7 +58,6 @@ def save_to_sheet(name, mobile, bill_no, amount, voucher):
     google_sheet.append_row(row)
 
 def bill_already_used(bill_no):
-    """Check if bill number already claimed a voucher."""
     if df.empty:
         return False
     match = df[df["Bill No"].astype(str) == str(bill_no)]
@@ -88,7 +84,6 @@ with st.form("details_form"):
 # PROCESS FORM
 # ----------------------------------------------------------
 if submitted:
-    # Check if all fields filled
     if not name or not mobile or not bill_no:
         st.warning("Please fill all fields.")
         st.stop()
@@ -98,7 +93,7 @@ if submitted:
         st.error("❌ This bill was already used to claim a voucher.")
         st.stop()
 
-    # Calculate number of vouchers based on amount
+    # Calculate vouchers
     vouchers_count = math.floor(float(amount) / 50)
     if vouchers_count < 1:
         st.error("❌ Minimum AED 50 needed to earn 1 voucher.")
@@ -106,10 +101,22 @@ if submitted:
 
     st.info(f"🧾 You will receive **{vouchers_count} voucher(s)** for this bill.")
 
-    # Generate and save multiple vouchers
+    # Generate and save vouchers
     for i in range(vouchers_count):
         voucher_num = generate_voucher(len(df) + i + 1)
         save_to_sheet(name, mobile, bill_no, amount, voucher_num)
         st.success(f"🎟️ Voucher Generated: {voucher_num}")
 
+    # Balloon animation
     st.balloons()
+
+    # ------------------------------
+    # FOLLOW INSTAGRAM PAGE
+    # ------------------------------
+    st.markdown("---")
+    st.subheader("✅ Almost done!")
+    st.info("To claim your voucher, please follow our Instagram page.")
+    st.markdown(
+        "[Follow @almadinagroupuae](https://www.instagram.com/almadinagroupuae?igsh=MTBqazJzamlzNXM3bg==) 🔗",
+        unsafe_allow_html=True
+    )
