@@ -36,18 +36,6 @@ except Exception:
     DEMO_MODE = True
 
 # ----------------------------------------------------------
-# DEMO AMOUNT & BILL ENTRY
-# ----------------------------------------------------------
-st.subheader("📋 Enter Your Details")
-
-with st.form("details_form"):
-    name = st.text_input("Full Name")
-    mobile = st.text_input("Mobile Number")
-    bill_no = st.text_input("Bill Number", value="DEMO-12345")
-    amount = st.number_input("Bill Amount (AED)", min_value=1.0, value=100.0)
-    submitted = st.form_submit_button("Submit")
-
-# ----------------------------------------------------------
 # HELPER FUNCTIONS
 # ----------------------------------------------------------
 def fetch_existing_data():
@@ -55,13 +43,13 @@ def fetch_existing_data():
     if DEMO_MODE:
         return pd.DataFrame(columns=["Name", "Number", "Bill No", "Amount", "Voucher", "Timestamp"])
     data = google_sheet.get_all_records()
-    return pd.DataFrame(data)
-
+    df = pd.DataFrame(data)
+    df.columns = df.columns.str.strip()  # remove spaces from headers
+    return df
 
 def generate_voucher(count):
     """Generates formatted voucher number: VCHR-00001"""
     return f"VCHR-{count:05d}"
-
 
 def save_to_sheet(name, mobile, bill_no, amount, voucher):
     """Save new row to Google Sheets."""
@@ -71,17 +59,6 @@ def save_to_sheet(name, mobile, bill_no, amount, voucher):
         st.success(f"[DEMO] Row saved: {row}")
         return
     google_sheet.append_row(row)
-
-
-def get_existing_voucher(mobile):
-    """Check if mobile already has a voucher."""
-    if df.empty:
-        return None
-    match = df[df["Number"].astype(str) == str(mobile)]
-    if match.empty:
-        return None
-    return match.iloc[0]["Voucher"]
-
 
 def bill_already_used(bill_no):
     """Check if bill number already claimed a voucher."""
@@ -96,18 +73,24 @@ def bill_already_used(bill_no):
 df = fetch_existing_data()
 
 # ----------------------------------------------------------
+# DEMO FORM FOR CUSTOMER DETAILS
+# ----------------------------------------------------------
+st.subheader("📋 Enter Your Details")
+
+with st.form("details_form"):
+    name = st.text_input("Full Name")
+    mobile = st.text_input("Mobile Number")
+    bill_no = st.text_input("Bill Number", value="DEMO-12345")
+    amount = st.number_input("Bill Amount (AED)", min_value=1.0, value=100.0)
+    submitted = st.form_submit_button("Submit")
+
+# ----------------------------------------------------------
 # PROCESS FORM
 # ----------------------------------------------------------
 if submitted:
+    # Check if all fields filled
     if not name or not mobile or not bill_no:
         st.warning("Please fill all fields.")
-        st.stop()
-
-    # Check if mobile already received voucher
-    existing_voucher = get_existing_voucher(mobile)
-    if existing_voucher:
-        st.success(f"🎉 You already have a voucher: **{existing_voucher}**")
-        st.info("You cannot receive multiple vouchers with the same number for the same mobile.")
         st.stop()
 
     # Check if bill already claimed
@@ -115,7 +98,7 @@ if submitted:
         st.error("❌ This bill was already used to claim a voucher.")
         st.stop()
 
-    # Calculate vouchers based on amount
+    # Calculate number of vouchers based on amount
     vouchers_count = math.floor(float(amount) / 50)
     if vouchers_count < 1:
         st.error("❌ Minimum AED 50 needed to earn 1 voucher.")
