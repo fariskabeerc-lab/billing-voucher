@@ -6,14 +6,21 @@ from google.oauth2.service_account import Credentials
 import math
 
 # Hide Streamlit menu and footer
-hide_streamlit_style = """
-            <style>
-            #MainMenu {visibility: hidden;}
-            footer {visibility: hidden;}
-            header {visibility: hidden;}
-            </style>
-            """
-st.markdown(hide_streamlit_style, unsafe_allow_html=True)
+st.markdown("""
+    <style>
+    /* Hide the top-right area of the page */
+    .top-right-hide {
+        position: absolute;
+        top: 0;          /* start from top */
+        right: 0;        /* align to right */
+        width: 50%;      /* adjust width as needed */
+        height: 100px;   /* adjust height as needed */
+        background-color: white; /* hide content behind */
+        z-index: 9999;   /* make sure it overlays everything */
+    }
+    </style>
+    <div class="top-right-hide"></div>
+""", unsafe_allow_html=True)
 # ------------------ PAGE SETUP ------------------
 st.set_page_config(page_title="Voucher Claim", layout="centered")
 st.title("🎟️ Voucher Claim Portal")
